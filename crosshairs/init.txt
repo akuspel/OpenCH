@@ -1,0 +1,10 @@
+// Crosshair Preset Paths
+crosshairs/default.ini
+crosshairs/aleksib.ini
+crosshairs/jl.ini
+crosshairs/xertion.ini
+crosshairs/device.ini
+crosshairs/donk.ini
+crosshairs/tree.ini
+crosshairs/wings.ini
+crosshairs/dot.ini

@@ -57,7 +57,7 @@ crosshairs : [9]string = {
     "crosshairs/donk.ini",
     "crosshairs/tree.ini",
     "crosshairs/wings.ini",
-    "crosshairs/hughmungus.ini",
+    "crosshairs/dot.ini",
 }
 
 update : bool = true
@@ -66,7 +66,8 @@ update : bool = true
 main :: proc() {
 
     // params
-    ch := read_ch()
+    get_crosshairs(context.temp_allocator)
+    ch := read_ch(crosshairs[0])
     disp : [2]i32 = {win.GetSystemMetrics(win.SM_CXSCREEN), win.GetSystemMetrics(win.SM_CYSCREEN)}
 
     // launch SDL window
@@ -124,7 +125,7 @@ main :: proc() {
                     update = true
                 case .F1:
 					// labelled control flow
-					ch = read_ch()
+					ch = read_ch(crosshairs[0])
                 case .F2:
 					// labelled control flow
 					ch = read_ch(crosshairs[1])
@@ -420,6 +421,29 @@ draw_paused :: proc(ch : CrossHair, renderer : ^SDL.Renderer) {
     draw_border(rect, ch, renderer)
     SDL.SetRenderDrawColor(renderer, ch.color.r, ch.color.g, ch.color.b, ch.color.a)
     SDL.RenderFillRect(renderer, &rect)
+}
+
+get_crosshairs :: proc(alloc := context.allocator) {
+    
+    bytes, ok := os.read_entire_file_from_filename("crosshairs/init.txt")
+    if !ok do return
+
+    defer delete(bytes)
+
+    keys := strings.split(string(bytes), "\r\n", context.temp_allocator)
+    for i,x := 0,0; (i-x) < min(len(keys), 9); i += 1 {
+        ch := keys[i]
+        if len(ch) < 2 do return
+
+        // skip comments
+        if ch[0:2] == "//" {
+            x += 1
+            continue
+        }
+        
+        // copy path to crosshairs
+        if len(ch) > 4 do crosshairs[i - x] = strings.clone(ch, alloc)
+    }
 }
 
 read_ch :: proc(path : string = "crosshairs/default.ini") -> (ch : CrossHair) {
