@@ -631,9 +631,3 @@ write_config :: proc(ch : ^CrossHair) {
 //     win.EnumWindows(EnumWindowsProc, win.LPARAM(uintptr(rawptr(&ctx))))
 //     return
 // }
-
-enable_mouse_input :: proc(hwnd : win.HWND, enable : bool) {
-
-    MouseCallback :: proc "stdcall" (hwnd : win.HWND, uMsg : u32, wParam : win.WPARAM, lParam : win.LPARAM, uIdSubclass : u32, )
-
-}
