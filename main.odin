@@ -22,6 +22,7 @@ CrossHair :: struct {
     center_dot  :   bool,
 
     w_length,
+    w_width,
     b_thickness,
     thickness,
     gap         :   i32,
@@ -44,8 +45,7 @@ state := struct {
     alt,
     ctrl : bool
 } {
-    paused = false,
-    options = false
+
 }
 
 crosshairs : [9]string = {
@@ -228,13 +228,13 @@ main :: proc() {
                 draw_paused(ch, r)
             }
             
-            MakeWindowTransparent(window, win.RGB(255, 0, 255))
+            MakeWindowTransparent(window, win.RGB(255, 0, 255), &ch)
             SDL.RenderPresent(r)
         }
 	}
 }
 
-MakeWindowTransparent :: proc(window : ^SDL.Window, colorKey : win.COLORREF) -> bool {
+MakeWindowTransparent :: proc(window : ^SDL.Window, colorKey : win.COLORREF, ch : ^CrossHair) -> bool {
     // Get window handle (https://stackoverflow.com/a/24118145/3357935)
     wmInfo : SDL.SysWMinfo
     SDL.GetWindowWMInfo(window, &wmInfo)
@@ -248,13 +248,13 @@ MakeWindowTransparent :: proc(window : ^SDL.Window, colorKey : win.COLORREF) -> 
     }
 
     // Set transparency color
-    return bool(win.SetLayeredWindowAttributes(hWnd, colorKey, 0, 0x00000001))
+    return bool(win.SetLayeredWindowAttributes(hWnd, colorKey, win.BYTE(ch.color.a), 0x00000001))
 }
 
 draw_ui :: proc(theme : ^aqui.Theme, ch : ^CrossHair, r : ^SDL.Renderer) {
 
     // Draw Main Panel
-    main_panel := aqui.make_control({100, 100}, {300, 560}, theme)
+    main_panel := aqui.make_control({100, 100}, {300, 600}, theme)
     aqui.draw_panel(&main_panel, theme, r)
 
     aqui.draw_label("Presets", {}, {60, 15}, theme, r, &main_panel, false)
@@ -276,14 +276,14 @@ draw_ui :: proc(theme : ^aqui.Theme, ch : ^CrossHair, r : ^SDL.Renderer) {
     if aqui.draw_button({}, {100, 20}, theme, r, &main_panel, text = "Save Crosshair") do write_config(ch)
 
     // Draw Settings Panel
-    settings_panel := aqui.make_control({}, {300, 450}, theme, &main_panel)
+    settings_panel := aqui.make_control({}, {300, 490}, theme, &main_panel)
     aqui.draw_panel(&settings_panel, theme, r)
     aqui.draw_label("Settings", {}, {80, 15}, theme, r, &settings_panel)
 
     subpanel := theme^
     subpanel.c_border = {240, 200, 200, 255}
-    size_panel := aqui.make_control({}, {140, 130}, theme, &settings_panel, false)
-    part_panel := aqui.make_control({}, {140, 130}, theme, &settings_panel, true)
+    size_panel := aqui.make_control({}, {140, 170}, theme, &settings_panel, false)
+    part_panel := aqui.make_control({}, {140, 170}, theme, &settings_panel, true)
     aqui.draw_panel(&size_panel, &subpanel, r)
     aqui.draw_panel(&part_panel, &subpanel, r)
 
@@ -291,6 +291,10 @@ draw_ui :: proc(theme : ^aqui.Theme, ch : ^CrossHair, r : ^SDL.Renderer) {
     aqui.draw_label("Length", {}, {40, 15}, theme, r, &size_panel, false)
     if aqui.draw_button({20, 0}, {15, 20}, theme, r, &size_panel, false, "+") do ch.w_length += 1
     if aqui.draw_button({}, {15, 20}, theme, r, &size_panel, true, "-") do ch.w_length -= 1
+
+    aqui.draw_label("Width", {}, {40, 15}, theme, r, &size_panel, false)
+    if aqui.draw_button({20, 0}, {15, 20}, theme, r, &size_panel, false, "+") do ch.w_width += 1
+    if aqui.draw_button({}, {15, 20}, theme, r, &size_panel, true, "-") do ch.w_width -= 1
 
     aqui.draw_label("Thickness", {}, {60, 15}, theme, r, &size_panel, false)
     if aqui.draw_button({}, {15, 20}, theme, r, &size_panel, false, "+") do ch.thickness += 1
@@ -361,15 +365,15 @@ draw_ch :: proc(ch : CrossHair, disp : [2]i32, renderer : ^SDL.Renderer) {
             rect.h = ch.w_length
         
         case 2:
-            rect.x = disp.x / 2 - (ch.gap / 2 + ch.w_length)
+            rect.x = disp.x / 2 - (ch.gap / 2 + ch.w_length + ch.w_width)
             rect.y = disp.y / 2 - ch.thickness / 2
-            rect.w = ch.w_length
+            rect.w = ch.w_length + ch.w_width
             rect.h = ch.thickness
         
         case 3:
             rect.x = disp.x / 2 + ch.gap / 2 + t_mod
             rect.y = disp.y / 2 - ch.thickness / 2
-            rect.w = ch.w_length
+            rect.w = ch.w_length + ch.w_width
             rect.h = ch.thickness
         }
         
@@ -456,6 +460,7 @@ read_ch :: proc(path : string = "crosshairs/default.ini") -> (ch : CrossHair) {
         center_dot  = true,
 
         w_length    = 6,
+        w_width     = 0,
         thickness   = 2,
         b_thickness = 1,
         gap         = 6,
@@ -490,6 +495,9 @@ read_ch :: proc(path : string = "crosshairs/default.ini") -> (ch : CrossHair) {
 
         if "w_length" in obj {
             if v, ok := strconv.parse_i64(obj["w_length"]); ok do ch.w_length = i32(v)
+        }
+        if "w_width" in obj {
+            if v, ok := strconv.parse_i64(obj["w_width"]); ok do ch.w_width = i32(v)
         }
         if "thickness" in obj {
             if v, ok := strconv.parse_i64(obj["thickness"]); ok do ch.thickness = i32(v)
@@ -568,6 +576,7 @@ write_config :: proc(ch : ^CrossHair) {
     buf2 : [32]byte
     buf3 : [32]byte
     buf4 : [32]byte
+    buf5 : [32]byte
     frmt := u8('f')
     bit_size := 64
 
@@ -582,12 +591,14 @@ write_config :: proc(ch : ^CrossHair) {
             ch.center_dot ? "1\n\n" : "0\n\n",
             "[values]\nw_length = ",
             string(strconv.ftoa(buf1[:], f64(ch.w_length), frmt, 0, bit_size)),
+            "\nw_width = ",
+            string(strconv.ftoa(buf2[:], f64(ch.w_width), frmt, 0, bit_size)),
             "\nthickness = ",
-            string(strconv.ftoa(buf2[:], f64(ch.thickness), frmt, 0, bit_size)),
+            string(strconv.ftoa(buf3[:], f64(ch.thickness), frmt, 0, bit_size)),
             "\nb_thickness = ",
-            string(strconv.ftoa(buf3[:], f64(ch.b_thickness), frmt, 0, bit_size)),
+            string(strconv.ftoa(buf4[:], f64(ch.b_thickness), frmt, 0, bit_size)),
             "\ngap = ",
-            string(strconv.ftoa(buf4[:], f64(ch.gap), frmt, 0, bit_size)),
+            string(strconv.ftoa(buf5[:], f64(ch.gap), frmt, 0, bit_size)),
             "\n\n[colors]\ncolor = \""
         },
         context.temp_allocator
