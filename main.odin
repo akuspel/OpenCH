@@ -311,10 +311,12 @@ draw_ui :: proc(theme : ^aqui.Theme, ch : ^CrossHair, r : ^SDL.Renderer) {
     // Part Panel
     aqui.draw_label("Wings", {}, {40, 15}, theme, r, &part_panel)
     wings : [4]cstring = {"T", "B", "L", "R"}
+    disabled := theme^
+    disabled.c_button = {180,50,150,255}
     for i in 0..<4 {
-        if aqui.draw_button({}, {15, 20}, theme, r, &part_panel, i == 3, wings[i]) do ch.wings[i] = !ch.wings[i]
+        if aqui.draw_button({}, {15, 20}, ch.wings[i] ? theme : &disabled, r, &part_panel, i == 3, wings[i]) do ch.wings[i] = !ch.wings[i]
     }
-    if aqui.draw_button({}, {100, 25}, theme, r, &part_panel, true, "Center Dot") do ch.center_dot = !ch.center_dot
+    if aqui.draw_button({}, {100, 25}, ch.center_dot ? theme : &disabled, r, &part_panel, true, "Center Dot") do ch.center_dot = !ch.center_dot
 
     // Color Panel
     color_panel := aqui.make_control({}, {300, 260}, theme, &settings_panel, true)
@@ -324,19 +326,21 @@ draw_ui :: proc(theme : ^aqui.Theme, ch : ^CrossHair, r : ^SDL.Renderer) {
     rgb : [3]cstring = {"R", "G", "B"}
     for i in 0..<3 {
         aqui.draw_label(rgb[i], {}, {10, 20}, theme, r, &color_panel, false)
-        if aqui.draw_button({}, {30, 20}, theme, r, &color_panel, false, "255") do ch.color[i] = 255
-        if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, false, "+") do ch.color[i] += 15
+        if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, false, "0") do ch.color[i] = 0
         if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, false, "-") do ch.color[i] -= 15
-        if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, true, "0") do ch.color[i] = 0
+        ch.color[i] = u8(aqui.draw_slider(i32(ch.color[i]), 0, 255, {}, {100, 20}, theme, r, &color_panel, false))
+        if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, false, "+") do ch.color[i] += 15
+        if aqui.draw_button({}, {30, 20}, theme, r, &color_panel, true, "255") do ch.color[i] = 255
     }
 
     aqui.draw_label("Border Color", {0, 20}, {80, 15}, theme, r, &color_panel)
     for i in 0..<3 {
         aqui.draw_label(rgb[i], {}, {10, 20}, theme, r, &color_panel, false)
-        if aqui.draw_button({}, {30, 20}, theme, r, &color_panel, false, "255") do ch.b_color[i] = 255
-        if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, false, "+") do ch.b_color[i] += 15
+        if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, false, "0") do ch.b_color[i] = 0
         if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, false, "-") do ch.b_color[i] -= 15
-        if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, true, "0") do ch.b_color[i] = 0
+        ch.b_color[i] = u8(aqui.draw_slider(i32(ch.b_color[i]), 0, 255, {}, {100, 20}, theme, r, &color_panel, false))
+        if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, false, "+") do ch.b_color[i] += 15
+        if aqui.draw_button({}, {30, 20}, theme, r, &color_panel, true, "255") do ch.b_color[i] = 255
     }
 
 }

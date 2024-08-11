@@ -157,6 +157,57 @@ draw_button :: proc(pos, rec : Vector2, theme : ^Theme, r : ^SDL.Renderer, paren
     return hovering && input.lmb == 2
 }
 
+draw_slider :: proc(val, vmin, vmax : i32, pos, rec : Vector2, theme : ^Theme, r : ^SDL.Renderer, parent : ^Control = nil, row : bool = true) -> i32 {
+    
+    has_parent := parent != nil
+
+    rect : SDL.Rect = {
+        x = has_parent ? parent.pos.x + max(parent.h + pos.x, theme.m_edge) : pos.x,
+        y = has_parent ? parent.pos.y + max(parent.v + pos.y, theme.m_edge) : pos.y
+    }
+    rect.w = has_parent ? min(rec.x, parent.rec.x - (rect.x - parent.pos.x) - theme.m_edge) : rec.x
+    rect.h = has_parent ? min(rec.y, parent.rec.y - (rect.y - parent.pos.y) - theme.m_edge) : rec.y
+
+    if has_parent {
+        if !row {
+            parent.h = rect.w + rect.x - parent.pos.x + theme.m_element
+        } else {
+            parent.v = rect.h + rect.y - parent.pos.y + theme.m_element; parent.h = 0
+        }
+    }
+
+    hovering := input.mpos.x > rect.x && input.mpos.x < rect.x + rect.w && input.mpos.y > rect.y && input.mpos.y < rect.y + rect.h
+    
+    draw_border(rect, theme, r)
+
+    SDL.SetRenderDrawColor(r, theme.c_button.r / 2, theme.c_button.g / 2, theme.c_button.b / 2, theme.c_button.a)
+    SDL.RenderFillRect(r, &rect)
+    
+    slider := rect
+    slider.x += theme.m_button
+    slider.y += theme.m_button
+    slider.w -= 2 * theme.m_button
+    slider.h -= 2 * theme.m_button
+
+    p := clamp(f32(val-vmin) / f32(vmax-vmin), 0, 1)
+    np := p
+    
+    if hovering && input.lmb == 1 {
+        SDL.SetRenderDrawColor(r, theme.c_press.r, theme.c_press.g, theme.c_press.b, theme.c_press.a)
+
+        np = min(max(f32(input.mpos.x - slider.x), 0) / f32(slider.w), 1)
+        p = np
+    } else if hovering {
+        SDL.SetRenderDrawColor(r, theme.c_highlight.r, theme.c_highlight.g, theme.c_highlight.b, theme.c_highlight.a)
+    } else {
+        SDL.SetRenderDrawColor(r, theme.c_button.r, theme.c_button.g, theme.c_button.b, theme.c_button.a)
+    }
+    slider.w = i32(p * f32(slider.w))
+    SDL.RenderFillRect(r, &slider)
+
+    return hovering && input.lmb == 1 ? vmin + i32(np * f32(vmax-vmin)) : val
+}
+
 draw_label :: proc(text : cstring, pos, rec : Vector2, theme : ^Theme, r : ^SDL.Renderer, parent : ^Control = nil, row : bool = true) {
 
     has_parent := parent != nil
