@@ -62,6 +62,10 @@ crosshairs : [9]string = {
 
 update : bool = true
 
+// UI Color Picker
+ocol : aqui.Vector2
+chue : i32
+
 // Procedures
 main :: proc() {
 
@@ -89,6 +93,8 @@ main :: proc() {
         
         t_border = 2,
         t_button = 30,
+
+        bevel = 1,
 
         m_edge = 10,
         m_button = 3,
@@ -155,6 +161,13 @@ main :: proc() {
 					state.options = !state.options
                     state.paused = false
                     update = true
+
+                    h,s,v := aqui.rgb_to_hsv(ch.color)
+                    chue = i32(h * 100)
+                    ocol = {
+                        i32(s * 100),
+                        i32((1 - v) * 100)
+                    }
 
                 case .LSHIFT:
                     // labelled control flow
@@ -253,6 +266,18 @@ MakeWindowTransparent :: proc(window : ^SDL.Window, colorKey : win.COLORREF, ch 
 
 draw_ui :: proc(theme : ^aqui.Theme, ch : ^CrossHair, r : ^SDL.Renderer) {
 
+    // Draw Color Panel
+    c_panel := aqui.make_control({410, 100}, {320, 250}, theme)
+    aqui.draw_panel(&c_panel, theme, r)
+    ocol = aqui.draw_area_picker(f32(chue) / 100, ocol, {}, {100,100}, {}, {300, 200}, theme, r, &c_panel)
+    
+    hcol := aqui.hsv_to_rgb(f32(chue) / 100, 1, 1)
+    htheme := theme^
+    htheme.c_button = hcol / 2
+    htheme.c_highlight = hcol * 2
+    htheme.c_press = hcol
+    chue = aqui.draw_slider(chue, 0, 100, {}, {400, 30}, &htheme, r, &c_panel)
+
     // Draw Main Panel
     main_panel := aqui.make_control({100, 100}, {300, 600}, theme)
     aqui.draw_panel(&main_panel, theme, r)
@@ -322,7 +347,8 @@ draw_ui :: proc(theme : ^aqui.Theme, ch : ^CrossHair, r : ^SDL.Renderer) {
     color_panel := aqui.make_control({}, {300, 260}, theme, &settings_panel, true)
     aqui.draw_panel(&color_panel, &subpanel, r)
     
-    aqui.draw_label("Crosshair Color", {}, {100, 15}, theme, r, &color_panel)
+    aqui.draw_label("Crosshair Color", {}, {100, 15}, theme, r, &color_panel, false)
+    if aqui.draw_button({0, 0}, {60, 20}, theme, r, &color_panel, true, "Append") do ch.color = aqui.hsv_to_rgb(f32(chue) / 100, f32(ocol.x) / 100, 1 - f32(ocol.y) / 100)
     rgb : [3]cstring = {"R", "G", "B"}
     for i in 0..<3 {
         aqui.draw_label(rgb[i], {}, {10, 20}, theme, r, &color_panel, false)
@@ -333,7 +359,8 @@ draw_ui :: proc(theme : ^aqui.Theme, ch : ^CrossHair, r : ^SDL.Renderer) {
         if aqui.draw_button({}, {30, 20}, theme, r, &color_panel, true, "255") do ch.color[i] = 255
     }
 
-    aqui.draw_label("Border Color", {0, 20}, {80, 15}, theme, r, &color_panel)
+    aqui.draw_label("Border Color", {0, 10}, {80, 15}, theme, r, &color_panel, false)
+    if aqui.draw_button({0, 10}, {60, 20}, theme, r, &color_panel, true, "Append") do ch.b_color = aqui.hsv_to_rgb(f32(chue) / 100, f32(ocol.x) / 100, 1 - f32(ocol.y) / 100)
     for i in 0..<3 {
         aqui.draw_label(rgb[i], {}, {10, 20}, theme, r, &color_panel, false)
         if aqui.draw_button({}, {15, 20}, theme, r, &color_panel, false, "0") do ch.b_color[i] = 0

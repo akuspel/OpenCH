@@ -6,6 +6,7 @@ import SDL_TTF "vendor:sdl2/ttf"
 
 // Types
 Vector2 :: [2]i32
+fVector2 :: [2]f32
 Color :: [4]u8
 
 Control :: struct {
@@ -23,6 +24,8 @@ Theme :: struct {
 
     t_border,
     t_button,
+
+    bevel,
 
     m_edge,
     m_button,
@@ -98,7 +101,7 @@ draw_panel :: proc(panel : ^Control, theme : ^Theme, r : ^SDL.Renderer) {
 
     draw_border(rect, theme, r)
     SDL.SetRenderDrawColor(r, theme.c_panel.r, theme.c_panel.g, theme.c_panel.b, theme.c_panel.a)
-    SDL.RenderFillRect(r, &rect)
+    render_bevel_rect(r, &rect, theme)
 }
 
 draw_border :: proc(rc : SDL.Rect, theme : ^Theme, r : ^SDL.Renderer) {
@@ -112,7 +115,7 @@ draw_border :: proc(rc : SDL.Rect, theme : ^Theme, r : ^SDL.Renderer) {
     rect.h += 2 * theme.t_border
 
     SDL.SetRenderDrawColor(r, theme.c_border.r, theme.c_border.g, theme.c_border.b, theme.c_border.a)
-    SDL.RenderFillRect(r, &rect)
+    render_bevel_rect(r, &rect, theme)
 }
 
 draw_button :: proc(pos, rec : Vector2, theme : ^Theme, r : ^SDL.Renderer, parent : ^Control = nil, row : bool = true, text : cstring = "", scale : i32 = 1) -> bool {
@@ -145,7 +148,7 @@ draw_button :: proc(pos, rec : Vector2, theme : ^Theme, r : ^SDL.Renderer, paren
     } else {
         SDL.SetRenderDrawColor(r, theme.c_button.r, theme.c_button.g, theme.c_button.b, theme.c_button.a)
     }
-    SDL.RenderFillRect(r, &rect)
+    render_bevel_rect(r, &rect, theme)
 
     trect := rect
     trect.x += theme.m_button
@@ -181,7 +184,7 @@ draw_slider :: proc(val, vmin, vmax : i32, pos, rec : Vector2, theme : ^Theme, r
     draw_border(rect, theme, r)
 
     SDL.SetRenderDrawColor(r, theme.c_button.r / 2, theme.c_button.g / 2, theme.c_button.b / 2, theme.c_button.a)
-    SDL.RenderFillRect(r, &rect)
+    render_bevel_rect(r, &rect, theme)
     
     slider := rect
     slider.x += theme.m_button
@@ -203,9 +206,97 @@ draw_slider :: proc(val, vmin, vmax : i32, pos, rec : Vector2, theme : ^Theme, r
         SDL.SetRenderDrawColor(r, theme.c_button.r, theme.c_button.g, theme.c_button.b, theme.c_button.a)
     }
     slider.w = i32(p * f32(slider.w))
-    SDL.RenderFillRect(r, &slider)
+    render_bevel_rect(r, &slider, theme)
 
     return hovering && input.lmb == 1 ? vmin + i32(np * f32(vmax-vmin)) : val
+}
+
+draw_area_picker :: proc(hue : f32, val, vmin, vmax, pos, rec : Vector2, theme : ^Theme, r : ^SDL.Renderer, parent : ^Control = nil, row : bool = true) -> Vector2 {
+    
+    has_parent := parent != nil
+
+    rect : SDL.Rect = {
+        x = has_parent ? parent.pos.x + max(parent.h + pos.x, theme.m_edge) : pos.x,
+        y = has_parent ? parent.pos.y + max(parent.v + pos.y, theme.m_edge) : pos.y
+    }
+    rect.w = has_parent ? min(rec.x, parent.rec.x - (rect.x - parent.pos.x) - theme.m_edge) : rec.x
+    rect.h = has_parent ? min(rec.y, parent.rec.y - (rect.y - parent.pos.y) - theme.m_edge) : rec.y
+
+    if has_parent {
+        if !row {
+            parent.h = rect.w + rect.x - parent.pos.x + theme.m_element
+        } else {
+            parent.v = rect.h + rect.y - parent.pos.y + theme.m_element; parent.h = 0
+        }
+    }
+
+    hovering := input.mpos.x > rect.x && input.mpos.x < rect.x + rect.w && input.mpos.y > rect.y && input.mpos.y < rect.y + rect.h
+    
+    draw_border(rect, theme, r)
+    
+    nrect := rect
+
+    nrect.x += theme.m_button
+    nrect.y += theme.m_button
+    nrect.w -= 2 * theme.m_button
+    nrect.h -= 2 * theme.m_button
+
+    pointer : SDL.Rect = {
+        x = nrect.x,
+        y = nrect.y,
+        w = 10,
+        h = 10,
+    }
+    pcol : Color
+    
+    p : fVector2
+    p.x = clamp(f32(val.x-vmin.x) / f32(vmax.x-vmin.x), 0, 1)
+    p.y = clamp(f32(val.y-vmin.y) / f32(vmax.y-vmin.y), 0, 1)
+    np := p
+    
+    if hovering && input.lmb == 1 {
+        pcol = theme.c_press
+
+        np.x = min(max(f32(input.mpos.x - nrect.x), 0) / f32(nrect.w), 1)
+        np.y = min(max(f32(input.mpos.y - nrect.y), 0) / f32(nrect.h), 1)
+        p = np
+    } else if hovering {
+        pcol = theme.c_highlight
+    } else {
+        pcol = theme.c_button
+    }
+
+    col := hsv_to_rgb(hue, p.x, 1 - p.y)
+    SDL.SetRenderDrawColor(r, col.r, col.g, col.b, col.a)
+    render_bevel_rect(r, &rect, theme)
+
+    res : Vector2 = {20,10}
+    w, h : i32
+    w = rect.w / res.x
+    h = rect.h / res.y
+    for x in 0..<res.x {
+        for y in 0..<res.y {
+            
+            tcol := hsv_to_rgb(hue, f32(x)/f32(res.x - 1), 1 - f32(y)/f32(res.y - 1))
+            trec := SDL.Rect {
+                x = rect.x + x*w,
+                y = rect.y + y*h,
+                w = w,
+                h = h
+            }
+            SDL.SetRenderDrawColor(r, tcol.r, tcol.g, tcol.b, tcol.a)
+            SDL.RenderFillRect(r, &trec)
+
+        }
+    }
+
+    SDL.SetRenderDrawColor(r, pcol.r, pcol.g, pcol.b, pcol.a)
+    pointer.x += i32(p.x * f32(nrect.w)) - pointer.w / 2
+    pointer.y += i32(p.y * f32(nrect.h)) - pointer.h / 2
+    render_bevel_rect(r, &pointer, theme)
+    
+    val := vmin + {i32(np.x * f32(vmax.x-vmin.x)), i32(np.y * f32(vmax.y-vmin.y))}
+    return hovering && input.lmb == 1 ? val : val
 }
 
 draw_label :: proc(text : cstring, pos, rec : Vector2, theme : ^Theme, r : ^SDL.Renderer, parent : ^Control = nil, row : bool = true) {
@@ -289,4 +380,29 @@ free_textures :: proc() {
     for key in ui_text {
         SDL.DestroyTexture(ui_text[key].tex)
     }
+}
+
+render_bevel_rect :: proc(r : ^SDL.Renderer, rect : ^SDL.Rect, theme : ^Theme) {
+
+    if theme.bevel <= 0 {
+        SDL.RenderFillRect(r, rect)
+        return
+    }
+
+    b := theme.bevel
+    smallest := min(theme.bevel * 2, rect.w, rect.h)
+    if smallest != theme.bevel * 2 do b = smallest / 2
+
+    rects : [2]SDL.Rect
+    for i in 0..<2 {
+        rects[i].x = i == 0 ? rect.x : rect.x + b
+        rects[i].y = i == 1 ? rect.y : rect.y + b
+        rects[i].w = i == 0 ? rect.w : rect.w - 2*b
+        rects[i].h = i == 1 ? rect.h : rect.h - 2*b
+    }
+
+    ra : [^]SDL.Rect = raw_data(rects[:])
+
+    SDL.RenderFillRects(r, ra, 2)
+
 }
